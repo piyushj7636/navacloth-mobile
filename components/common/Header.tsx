@@ -1,55 +1,61 @@
 import { setNewTheme } from "@/redux/features/common/themeSlice";
 import { RootState } from "@/redux/store";
 import { Fontisto, Ionicons } from "@expo/vector-icons";
-import React from "react";
-import {
-	Pressable,
-	StyleSheet,
-	Text,
-	View,
-} from "react-native";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function Header() {
   const dispatch = useDispatch();
-	const currentTheme = useSelector((state: RootState) => state.theme)
-	const colorTheme = currentTheme === "light" ? "black" : "white"
+  const currentTheme = useSelector((state: RootState) => state.theme);
+  const colorTheme = currentTheme === "light" ? "black" : "white";
 
   const toggleTheme = () => {
-    dispatch(setNewTheme(currentTheme === 'light' ? 'dark' : 'light'));
+    dispatch(setNewTheme(currentTheme === "light" ? "dark" : "light"));
   };
   return (
-    <View style={[styles.container]}>
-      <Text
-        style={{
-          color: colorTheme,
-          fontSize: 20,
-          fontWeight: 900,
-        }}
-      >
-        APPAREL
-      </Text>
-      <View style={styles.icons}>
-        {/* <Pressable>
-          <Ionicons name="notifications-outline" size={24} color={newTheme === "light" ? "black" : "white"} />
-        </Pressable> */}
-				<Pressable onPress={toggleTheme}>
-          <Text style={{ color: colorTheme }}>
-            <Fontisto
-              name={currentTheme === "light" ? "day-sunny" : "night-clear"}
-              size={20}
-            />
-          </Text>
-        </Pressable>
-        <Pressable style={{ marginLeft: 16 }}>
-          <Ionicons
-            name="cart-outline"
-            size={24}
-            color={colorTheme}
-          />
-        </Pressable>
+    <>
+      <View style={[styles.container]}>
+        {/* <Text
+          style={{
+            color: colorTheme,
+            fontSize: 20,
+            fontWeight: 900,
+          }}
+        >
+          APPAREL
+        </Text> */}
+        <View style={styles.icons}>
+          <Pressable onPress={toggleTheme}>
+            <Text style={{ color: colorTheme, marginTop: 2 }}>
+              <Fontisto
+                name={currentTheme === "light" ? "day-sunny" : "night-clear"}
+                size={20}
+              />
+            </Text>
+          </Pressable>
+          <View>
+            <Pressable
+              style={{ marginLeft: 10 }}
+              onPress={() => router.push("/(tabs)/home/notifications")}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={24}
+                color={colorTheme}
+              />
+            </Pressable>
+          </View>
+          <Pressable
+            style={{ marginLeft: 10 }}
+            onPress={() => router.push("/(tabs)/home/cart")}
+          >
+            <Ionicons name="cart-outline" size={24} color={colorTheme} />
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 
@@ -58,8 +64,9 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginHorizontal: 20,
-    marginTop: 20,
+    // marginHorizontal: 20,
+    // paddingVertical: 14,
+    alignItems: "center",
   },
   header: {
     display: "flex",

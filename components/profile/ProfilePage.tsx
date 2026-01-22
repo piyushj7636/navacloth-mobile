@@ -1,112 +1,230 @@
-import React, { useState } from 'react';
+import { setIsUserLoggedIn, setUser } from "@/redux/features/user/authSlice";
+import { clearTokens } from "@/redux/token";
+import { Entypo } from "@expo/vector-icons";
+import { getAuth, signOut } from "@react-native-firebase/auth";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router } from "expo-router";
+import React from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  Image,
-  TouchableOpacity,
+  ScrollView,
   StyleSheet,
-  Platform,
-} from 'react-native';
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { Button } from "react-native-paper";
+import { useDispatch } from "react-redux";
 
-const ProfilePage = () => {
-  const [mobile, setMobile] = useState('');
-  const [checked, setChecked] = useState(false);
+const ProfilePage = ({ userData }) => {
 
+  const dispatch = useDispatch()
+  const handleLogout = async () => {
+    const auth = getAuth();
+    await signOut(auth)
+    await clearTokens();
+    dispatch(setIsUserLoggedIn(false));
+    dispatch(setUser(null))
+    router.replace("/(tabs)/home")
+  };
+  const tabBarHeight = useBottomTabBarHeight();
+  console.log(userData);
   return (
-    <View style={styles.container}>
-      {/* Banner */}
-      <Image
-        source={{ uri: 'https://www.placeholderimage.online/placeholder/400/200/f3f4f6/1f2937?font=Montserrat.svg' }}
-        style={styles.banner}
-      />
-
-      {/* Title */}
-      <Text style={styles.title}>Login / Signup</Text>
-      <Text style={styles.subtitle}>Join us now to be a part of the family.</Text>
-
-      {/* Mobile Input */}
-      <View style={styles.inputRow}>
-        <Text style={styles.countryCode}>+91</Text>
-        <TextInput
-          placeholder="Enter Mobile Number"
-          keyboardType="phone-pad"
-          value={mobile}
-          onChangeText={setMobile}
-          style={styles.input}
-        />
-      </View>
-
-      {/* Continue Button */}
-      <TouchableOpacity style={styles.continueBtn}>
-        <Text style={styles.continueText}>CONTINUE</Text>
-      </TouchableOpacity>
-
-      {/* Social Login */}
-      <View style={styles.socialRow}>
-        <TouchableOpacity style={styles.socialBtn}>
-          <Text style={styles.socialText}>GOOGLE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialBtn}>
-          <Text style={styles.socialText}>FACEBOOK</Text>
+    <ScrollView style={[styles.container, { marginBottom: tabBarHeight }]}>
+      {/* Profile Header */}
+      <View style={styles.header}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>P</Text>
+        </View>
+        <View style={styles.userInfo}>
+          <Text style={styles.name}>piyush</Text>
+          <Text style={styles.email}>piyushj7636@gmail.com</Text>
+        </View>
+        <TouchableOpacity>
+          <Text style={styles.editText}>EDIT</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Checkbox */}
-      <View style={styles.checkboxRow}>
-        <Text style={styles.checkboxLabel}>
-          Fetch my address for blazing fast checkout
-        </Text>
+      {/* Action Buttons */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/orders")}
+        >
+          <Text style={styles.sectionTitle}>My Orders</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/giftcards")}
+        >
+          <Text style={styles.sectionTitle}>Gifts</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/rewards")}
+        >
+          <Text style={styles.sectionTitle}>Rewards</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/purchasehistory")}
+        >
+          <Text style={styles.sectionTitle}>Purchase History</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/referandearn")}
+        >
+          <Text style={styles.sectionTitle}>Refer and Earn</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
       </View>
 
-      {/* Disclaimer */}
-      <Text style={styles.disclaimer}>
-        By creating an account or logging in, you agree to our{' '}
-        <Text style={styles.link}>T&C</Text> and <Text style={styles.link}>Privacy Policy</Text>.
-      </Text>
-    </View>
+      {/* My Addresses */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/address")}
+        >
+          <Text style={styles.sectionTitle}>My Addresses</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <Text style={styles.subText}>Manage your addresses here</Text>
+      </View>
+
+      {/* Contact Us */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>CONTACT US</Text>
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/support/help")}
+        >
+          <Text style={styles.sectionTitle}>Help & Support</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => router.push("/(tabs)/profile/support/feedback")}
+        >
+          <Text style={styles.sectionTitle}>Feedback & Suggestion</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+      </View>
+
+      {/* About Us */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>ABOUT US</Text>
+
+        <TouchableOpacity style={styles.row}>
+          <Text style={styles.sectionTitle}>Our Story</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.row}>
+          <Text style={styles.sectionTitle}>Delete Account</Text>
+          <Entypo name="chevron-right" size={24} color="#999" />
+        </TouchableOpacity>
+        <Button
+          mode="contained"
+          buttonColor="red"
+          labelStyle={{ color: "white", fontSize: 16, fontWeight: 900 }}
+          onPress={handleLogout}
+        >
+          Logout
+        </Button>
+      </View>
+    </ScrollView>
   );
-}
+};
 
-export default ProfilePage
+export default ProfilePage;
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  banner: { width: '100%', height: 200, borderRadius: 12, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 16 },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 16,
+  container: {
+    flexGrow: 1,
   },
-  countryCode: { fontSize: 16, marginRight: 8 },
-  input: { flex: 1, fontSize: 16, paddingVertical: 10 },
-  continueBtn: {
-    backgroundColor: '#222',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 16,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
   },
-  continueText: { color: '#fff', fontWeight: 'bold' },
-  socialRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  socialBtn: {
+  avatar: {
+    width: 55,
+    height: 55,
+    borderRadius: 30,
+    backgroundColor: "#FFD54F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#000",
+  },
+  userInfo: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 4,
+    marginLeft: 12,
   },
-  socialText: { fontWeight: 'bold' },
-  checkboxRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  iosCheckbox: { transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
-  checkboxLabel: { marginLeft: 8, fontSize: 14 },
-  disclaimer: { fontSize: 12, color: '#666', textAlign: 'center' },
-  link: { color: '#007bff', textDecorationLine: 'underline' },
+  name: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#000",
+  },
+  email: {
+    fontSize: 14,
+    color: "#666",
+  },
+  editText: {
+    color: "#007BFF",
+    fontWeight: "600",
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 20,
+    backgroundColor: "#fff8e1",
+    marginHorizontal: 10,
+    borderRadius: 12,
+  },
+  actionItem: {
+    alignItems: "center",
+  },
+  actionText: {
+    marginTop: 6,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#000",
+  },
+  section: {
+    marginTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingHorizontal: 16,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  sectionHeader: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#777",
+  },
+  sectionTitle: {
+    fontSize: 15,
+    color: "#000",
+  },
+  subText: {
+    fontSize: 12,
+    color: "#888",
+    marginBottom: 6,
+    marginLeft: 2,
+  },
 });

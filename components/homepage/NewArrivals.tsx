@@ -2,35 +2,36 @@ import { RootState } from '@/redux/store';
 import React from 'react';
 import { View, Text, Image, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useSelector } from 'react-redux';
-
-const products = [
-  { id: '1', name: 'Black Tee', image: 'https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg' },
-  { id: '2', name: 'Beige Hoodie', image: 'https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg' },
-	{ id: '3', name: 'Beige Hoodie', image: 'https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg' },
-	{ id: '4', name: 'Beige Hoodie', image: 'https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg' },
-];
+import { router } from 'expo-router';
+import products from "../../app/MOCK_DATA.json"
 
 export default function NewArrivals() {
   const currentTheme = useSelector((state: RootState) => state.theme)
 	const colorTheme = currentTheme === "light" ? "black" : "white"
-
+  const newArrivalsProducts = products.filter((item) => item.tags?.includes("New Arrivals")).slice(0, 10)
+  
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={[styles.title, {color: colorTheme}]}>New Arrivals</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/(tabs)/home/newarrivals/")}>
           <Text style={styles.seeAll}>See All</Text>
         </TouchableOpacity>
       </View>
       <FlatList
-        data={products}
+        data={newArrivalsProducts}
+        maxToRenderPerBatch={10}
         horizontal
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={{ uri: item.image }} style={styles.image} />
-            <Text style={styles.label}>{item.name}</Text>
-          </View>
+          <TouchableOpacity onPress={() => router.push(`/(tabs)/home/newarrivals/${item.id}`)}>
+            <View style={styles.card}>
+              <View>
+                <Image source={{ uri: item.media?.images[0] }} style={styles.image} />
+                <Text style={styles.label}>{item.name}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         )}
         showsHorizontalScrollIndicator={false}
       />
@@ -39,11 +40,11 @@ export default function NewArrivals() {
 }
 
 const styles = StyleSheet.create({
-  container: { marginVertical: 16, paddingHorizontal: 16 },
+  container: { marginVertical: 10, paddingHorizontal: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   title: { fontSize: 18, fontWeight: 900 },
   seeAll: { color: '#007bff' },
-  card: { marginRight: 16 },
+  card: { marginRight: 16, width: 130 },
   image: { width: 120, height: 160, borderRadius: 12 },
   label: { marginTop: 4, fontSize: 14 },
 });

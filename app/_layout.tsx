@@ -3,6 +3,8 @@ import ThemeInitializer from "@/components/common/ThemeInitialiser";
 import { store } from "@/redux/store";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { PaperProvider } from "react-native-paper";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
 
 export const unstable_settings = {
@@ -12,13 +14,17 @@ export const unstable_settings = {
 export default function RootLayout() {
   return (
     <Provider store={store}>
-      <ThemeInitializer />
-      <ReduxThemeProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ReduxThemeProvider>
+      {/* <PersistGate loading={null} persistor={persistor}> */}
+      <SafeAreaProvider>
+        <PaperProvider>
+          <ThemeInitializer />
+          <ReduxThemeProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBar style="auto" />
+          </ReduxThemeProvider>
+        </PaperProvider>
+      </SafeAreaProvider>
+      {/* </PersistGate> */}
     </Provider>
   );
 }
