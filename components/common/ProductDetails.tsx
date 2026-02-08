@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -8,23 +8,21 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { tabBarVisibility } from "@/app/(tabs)/_layout";
-import Animated, { useAnimatedScrollHandler } from "react-native-reanimated";
 import Carousel from "react-native-reanimated-carousel";
 import products from "../../app/MOCK_DATA.json";
-// import PriceTag from "../product/PriceTag";
-// import QuantityStepper from "../product/QuantityStepper";
-// import VariantSelector from "../product/VariantSelector";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
-import ProductDetailsModal from "../modal/ProductDetailsModal";
-import SizeChartModal from "../modal/SizeChartModal";
-import StarRating from "../product/StarRating";
-import { useDispatch } from "react-redux";
+import { addItemToCart } from "@/features/cart/cart.db.js";
+import { useAddToCartMutation, useAddToWishlistMutation } from "@/redux/apiSlice";
 import { hideTab, showTab } from "@/redux/features/common/tabSlice";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { useDispatch } from "react-redux";
+import ProductDetailsModal from "../modal/ProductDetailsModal";
+import SizeChartModal from "../modal/SizeChartModal";
+import StarRating from "../product/StarRating";
+import VariantSelector from "../product/VariantSelector";
 import DeliveryDetailsCard from "./DeliveryDetails";
 import ProductHighlights from "./ProductHighlights";
 
@@ -33,9 +31,12 @@ const { width } = Dimensions.get("window");
 const ProductDetails = ({ productId }) => {
   const product = products.find((p) => p.id === Number(productId));
   const [modalVisible, setModalVisible] = useState(false);
-  // const [isSelected, setIsSelected] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [isSizeChartModalVisible, setIsSizeChartModalVisible] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [addToWishlist] = useAddToWishlistMutation();
+  const [addToCart] = useAddToCartMutation()
   const dispatch = useDispatch();
   const last = useRef(0);
   const insets = useSafeAreaInsets();
@@ -58,6 +59,76 @@ const ProductDetails = ({ productId }) => {
     ? product?.rating_summary.reviews
     : product?.rating_summary.reviews.slice(0, 3);
   if (!product) return <Text>Product not found</Text>;
+
+  const variantsForSelector = product.variants.map((v) => ({
+    size: v.size,
+    color: v.color.name, // use color name
+    stock: v.stock,
+  }));
+
+  // Get variant ID by filtering on color name and size
+  const getVariantCode = (colorName: string, size: string) => {
+    const variant = product.variants.find(
+      (v) => v.color.name === colorName && v.size === size,
+    );
+    return variant?.variant_code || null;
+  };
+
+  const handleAddToWishlist = async () => {
+    try {
+      if (!selectedColor || !selectedSize) {
+        console.error("❌ Please select size and color");
+        return;
+      }
+      const variantCode = getVariantCode(selectedColor, selectedSize);
+      if (!variantCode) {
+        console.error("❌ Variant not found");
+        return;
+      }
+      const item = {
+        product_id: product.id,
+        variant_code: variantCode,
+        title: product.name,
+        size: selectedSize,
+        color: selectedColor,
+        image: product?.media.images[0],
+        average_rating: product?.rating_summary?.average_rating,
+      };
+      await addToWishlist(item);
+      console.log("💖 Added to wishlist");
+    } catch (error) {
+      console.log("❌ Error adding to wishlist", error);
+    }
+  };
+
+  const handleAddToCart = async () => {
+    try {
+      if (!selectedColor || !selectedSize) {
+        console.error("❌ Please select size and color");
+        return;
+      }
+      const variantCode = getVariantCode(selectedColor, selectedSize);
+      if (!variantCode) {
+        console.error("❌ Variant not found");
+        return;
+      }
+
+      const item = {
+        product_id: product.id,
+        variant_code: variantCode,
+        title: product.name,
+        size: selectedSize,
+        color: selectedColor,
+        price: product.pricing.mrp,
+        selling_price: product.pricing.selling_price,
+        image: product?.media.images[0],
+        discount: product?.pricing.discount_percent,
+      }
+      await addToCart(item)
+    } catch (error) {
+      console.log("❌ Error adding to cart", error);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -130,14 +201,21 @@ const ProductDetails = ({ productId }) => {
               </View>
 
               <View style={styles.sizeRow}>
-                {product.variants.map((item) => (
+                {/* {product.variants.map((item) => (
                   <TouchableOpacity
                     key={item.variant_id}
                     style={styles.sizeBtn}
                   >
                     <Text style={styles.sizeText}>{item.size}</Text>
                   </TouchableOpacity>
-                ))}
+                ))} */}
+                <VariantSelector
+                  variants={variantsForSelector}
+                  selectedSize={selectedSize}
+                  selectedColor={selectedColor}
+                  onSizeSelect={setSelectedSize}
+                  onColorSelect={setSelectedColor}
+                />
               </View>
             </View>
 
@@ -157,7 +235,7 @@ const ProductDetails = ({ productId }) => {
             <DeliveryDetailsCard />
 
             {/* PRODUCT HIGHLIGHTS */}
-            <ProductHighlights />
+            <ProductHighlights product={product} />
 
             {/* BOTTOM SHEET MODAL */}
             <ProductDetailsModal
@@ -184,12 +262,18 @@ const ProductDetails = ({ productId }) => {
         )}
         ListFooterComponent={() => (
           <View style={styles.footer}>
-            <TouchableOpacity style={[styles.button, styles.wishlistBtn]}>
+            <TouchableOpacity
+              style={[styles.button, styles.wishlistBtn]}
+              onPress={handleAddToWishlist}
+            >
               <Ionicons name="heart-outline" size={18} color="#111" />
               <Text style={styles.wishlistText}>Add to Wishlist</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.button, styles.addToBagBtn]}>
+            <TouchableOpacity
+              style={[styles.button, styles.addToBagBtn]}
+              onPress={handleAddToCart}
+            >
               <Ionicons name="cart-outline" size={18} color="#FFF" />
               <Text style={styles.addToBagText}>Add To Bag</Text>
             </TouchableOpacity>

@@ -60,7 +60,7 @@ const SelectAddressModal = ({ visible, onClose, setShowModal }) => {
             style={styles.selectBtn}
             onPress={() => {
               setShowModal(false);
-              router.push("/cart/payment");
+              router.push("/(tabs)/home/cart/payment");
             }}
           >
             <Text style={styles.selectBtnText}>SELECT ADDRESS</Text>

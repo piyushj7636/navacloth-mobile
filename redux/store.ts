@@ -43,11 +43,15 @@ import themeSlice from './features/common/themeSlice';
 import { apiSlice } from "./apiSlice";
 import tabSlice from './features/common/tabSlice'
 import reducer from "./features/user";
+import wishlistReducer from "./features/wishlist";
+import cartReducer from "./features/cart";
 
 const rootReducer = combineReducers({
   theme: themeSlice,
   tab: tabSlice,
   auth: reducer,
+  wishlist: wishlistReducer,
+  cart: cartReducer,
   [apiSlice.reducerPath]: apiSlice.reducer,
 });
 

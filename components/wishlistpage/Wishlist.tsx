@@ -1,8 +1,16 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useRouter } from "expo-router";
-import React from "react";
+import { getWishlistItems } from "@/features/wishlist/wishlist.db.js";
 import {
+  useAddToCartMutation,
+  useGetWishlistQuery,
+  useRemoveFromWishlistMutation,
+} from "@/redux/apiSlice";
+import { RootState } from "@/redux/store";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -11,118 +19,153 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2;
 
-const wishlistData = [
-  {
-    id: "1",
-    offer: "BUY 3 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Grey Uncharted Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.6,
-    price: 599,
-    oldPrice: 1399,
-    discount: "57% off",
-  },
-  {
-    id: "2",
-    offer: "BUY 4 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Blue Dementors Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.5,
-    price: 499,
-    oldPrice: 1149,
-    discount: "56% off",
-  },
-  {
-    id: "3",
-    offer: "BUY 3 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Brick Red Marvel Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.4,
-    price: 499,
-    oldPrice: 1499,
-    discount: "66% off",
-  },
-  {
-    id: "4",
-    offer: "BUY 2 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Brown Deadpool Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.5,
-    price: 599,
-    oldPrice: 1299,
-    discount: "53% off",
-  },
-  {
-    id: "5",
-    offer: "BUY 2 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Brown Deadpool Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.5,
-    price: 599,
-    oldPrice: 1299,
-    discount: "53% off",
-  },
-  {
-    id: "6",
-    offer: "BUY 2 FOR 1099",
-    image:
-      "https://www.placeholderimage.online/placeholder/120/160/f3f4f6/1f2937?font=Montserrat.svg",
-    title: "Men's Brown Deadpool Graphic Printed T-Shirt",
-    brand: "Bewakoof®",
-    rating: 4.5,
-    price: 599,
-    oldPrice: 1299,
-    discount: "53% off",
-  },
-];
-
 const Wishlist = () => {
-  const isAuthenticated = true;
+  const [localWishlist, setLocalWishlist] = useState([]);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineIndicator, setOfflineIndicator] = useState(false);
+  const [addToCart] = useAddToCartMutation()
+
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.auth.isUserLoggedIn,
+  );
   const router = useRouter();
-  const insets = useSafeAreaInsets()
+  const insets = useSafeAreaInsets();
+
+  // ✅ Listen to network connectivity
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      const online = Boolean(state.isConnected);
+      setIsOnline(online);
+      if (!online) {
+        setOfflineIndicator(true);
+      }
+    });
+    return unsub;
+  }, []);
+
+  
+  // ✅ Load SQLite when offline
+  useEffect(() => {
+    if (!isOnline && isAuthenticated) {
+      (async () => {
+        try {
+          const data = await getWishlistItems();
+          setLocalWishlist(data);
+          console.log("📦 Loaded wishlist from SQLite (offline mode)");
+        } catch (error) {
+          console.error("❌ Error loading offline wishlist", error);
+        }
+      })();
+    }
+  }, [isOnline, isAuthenticated]);
+
+  // ✅ Fetch wishlist from server only when online
+  const {
+    data: wishlistData,
+    isLoading,
+    refetch,
+  } = useGetWishlistQuery(undefined, {
+    skip: !isAuthenticated || !isOnline, // skip when offline or not authenticated
+  });
+
+  const handleAddToCart = async (item) => {
+    try {
+      console.log("Wishlist data: ",item)
+      const cartItem = {
+        product_id: item.product_id,
+        variant_code: item.variant_code,
+        title: item.title,
+        size: item.size,
+        color: item.color,
+        price: item.original_price,
+        selling_price: item.selling_price,
+        image: item.image,
+        discount: item.discount_percent,
+      }
+      await addToCart(cartItem)
+    } catch (error) {
+      console.log("❌ Error adding to cart", error);
+    }
+  };
+
+  // ✅ Auto-refetch when back online
+  useEffect(() => {
+    if (isOnline && isAuthenticated && offlineIndicator) {
+      console.log("🔄 Back online — refetching wishlist");
+      refetch();
+      setOfflineIndicator(false);
+    }
+  }, [isOnline, isAuthenticated, refetch, offlineIndicator]);
+
+  const [removeFromWishlist] = useRemoveFromWishlistMutation();
+
+  const handleRemove = async (item) => {
+    try {
+      const id = item.wishlist_item_id ?? item.variant_id ?? item.id;
+      await removeFromWishlist(id).unwrap();
+      // optional: refetch to ensure latest server state
+      try {
+        await refetch();
+      } catch {}
+    } catch (error) {
+      console.error("❌ Failed to remove item", error);
+    }
+  };
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
-      <TouchableOpacity onPress={() => router.push(`/(tabs)/wishlist/product/${item.id}`)}>
-        <View>
-          <View style={styles.offerTag}>
-            <Text style={styles.offerText}>{item.offer}</Text>
-          </View>
-
+      <TouchableOpacity
+        onPress={() =>
+          router.push(`/(tabs)/wishlist/product/${item.product_id}`)
+        }
+      >
+        <View style={styles.imageWrapper}>
           <Image source={{ uri: item.image }} style={styles.image} />
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => handleRemove(item)}
+            accessibilityLabel="Remove from wishlist"
+          >
+            <Ionicons name="trash-outline" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        <View>
+          {/* <View style={styles.offerTag}>
+            <Text style={styles.offerText}>{item.offer}</Text>
+          </View> */}
 
-          <View style={styles.details}>
-            <View style={styles.rating}>
-              <Ionicons name="star" size={14} color="#FFC107" />
-              <Text style={styles.ratingText}>{item.rating}</Text>
+          <View style={styles.content}>
+            <View style={styles.ratingRow}>
+              <View style={styles.rating}>
+                <Ionicons name="star" size={14} color="#FFC107" />
+                <Text style={styles.ratingText}>{item.average_rating}</Text>
+              </View>
+              <View style={styles.sizeBadge}>
+                <Text style={{ fontSize: 11 }}>
+                  Size: <Text style={styles.sizeText}>{item.size}</Text>
+                </Text>
+              </View>
             </View>
-            <Text style={styles.brand}>{item.brand}</Text>
+
+            {/* <Text style={styles.brand}>{item.brand}</Text> */}
             <Text style={styles.title} numberOfLines={2}>
               {item.title}
             </Text>
 
-            <View style={styles.priceRow}>
+            {/* <View style={styles.priceRow}>
               <Text style={styles.price}>₹{item.price}</Text>
               <Text style={styles.oldPrice}>₹{item.oldPrice}</Text>
               <Text style={styles.discount}>{item.discount}</Text>
-            </View>
+            </View> */}
 
-            <TouchableOpacity style={styles.addButton}>
+            <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(item)}>
               <Text style={styles.addButtonText}>ADD TO BAG</Text>
             </TouchableOpacity>
           </View>
@@ -131,34 +174,65 @@ const Wishlist = () => {
     </View>
   );
 
+  // Decide which data source to show
+  const displayData = !isOnline ? localWishlist : (wishlistData || []);
+
   return (
-    <View style={{paddingBottom: insets.bottom + 60}}>
+    <View style={{ paddingBottom: insets.bottom + 60 }}>
       {isAuthenticated ? (
-        <FlatList
-          data={wishlistData}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          numColumns={2}
-          contentContainerStyle={styles.container}
-          showsVerticalScrollIndicator={false}
-          // style={{ marginBottom: tabBarHeight + 40 }}
-        />
+        isLoading && !displayData.length ? (
+          <View
+            style={[
+              styles.container,
+              { justifyContent: "center", alignItems: "center", height: 200 },
+            ]}
+          >
+            <ActivityIndicator size="large" color="#000" />
+          </View>
+        ) : displayData.length > 0 ? (
+          <>
+            {!isOnline && (
+              <View style={styles.offlineBanner}>
+                <Feather name="wifi-off" size={14} color="#fff" />
+                <Text style={styles.offlineBannerText}>
+                  {" "}
+                  Offline mode — showing cached data
+                </Text>
+              </View>
+            )}
+            <FlatList
+              data={displayData}
+              keyExtractor={(item) =>
+                item.wishlist_item_id?.toString() ??
+                item.variant_id ??
+                String(item.id)
+              }
+              renderItem={renderItem}
+              numColumns={2}
+              contentContainerStyle={styles.container}
+              columnWrapperStyle={{ justifyContent: "space-between" }}
+            />
+          </>
+        ) : (
+          //Empty state
+          <View style={styles.container}>
+            <Image
+              source={{
+                uri: "https://www.placeholderimage.online/placeholder/150/150/f3f4f6/1f2937?font=Montserrat.svg",
+              }}
+              style={styles.image}
+            />
+            <Text style={styles.title}>Your Wishlist is Empty</Text>
+            <Text style={styles.subtitle}>
+              Save your favorite items here and shop them anytime.
+            </Text>
+            <TouchableOpacity style={styles.button}>
+              <Text style={styles.buttonText}>Start Shopping</Text>
+            </TouchableOpacity>
+          </View>
+        )
       ) : (
-        <View style={styles.container}>
-          <Image
-            source={{
-              uri: "https://www.placeholderimage.online/placeholder/150/150/f3f4f6/1f2937?font=Montserrat.svg",
-            }}
-            style={styles.image}
-          />
-          <Text style={styles.title}>Your Wishlist is Empty</Text>
-          <Text style={styles.subtitle}>
-            Save your favorite items here and shop them anytime.
-          </Text>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Start Shopping</Text>
-          </TouchableOpacity>
-        </View>
+        <Text>Please log in to view your wishlist.</Text>
       )}
     </View>
   );
@@ -168,97 +242,92 @@ export default Wishlist;
 
 const styles = StyleSheet.create({
   container: {
-    padding: 12,
-    // backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 24,
+    backgroundColor: "#f5f5f5",
   },
+
   card: {
     width: cardWidth,
     backgroundColor: "#fff",
-    borderRadius: 12,
+    borderRadius: 14,
     margin: 6,
-    elevation: 3,
+    // flex: 1,
+
+    // Android
+    elevation: 4,
+
+    // iOS
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+
+    overflow: "hidden",
   },
-  offerTag: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: "#00C853",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    zIndex: 1,
-  },
-  offerText: {
-    fontSize: 10,
-    color: "#fff",
-    fontWeight: "600",
-  },
+
   image: {
     width: "100%",
     height: 180,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    backgroundColor: "#f0f0f0",
   },
+
+  imageWrapper: {
+    position: "relative",
+  },
+
+  deleteBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    padding: 6,
+    borderRadius: 16,
+    zIndex: 2,
+  },
+
   details: {
-    padding: 8,
+    padding: 10,
   },
+
   rating: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 4,
   },
+
   ratingText: {
     fontSize: 12,
     marginLeft: 4,
-    color: "#333",
+    color: "#444",
+    fontWeight: "500",
   },
-  brand: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-    marginTop: 2,
-  },
+
   title: {
-    fontSize: 11,
-    color: "#666",
-    marginTop: 2,
-  },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    fontSize: 13,
+    color: "#222",
     marginTop: 4,
+    lineHeight: 16,
+    minHeight: 32, // 🔥 IMPORTANT (2 lines space)
   },
-  price: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111",
-  },
-  oldPrice: {
-    fontSize: 12,
-    textDecorationLine: "line-through",
-    color: "#888",
-    marginLeft: 6,
-  },
-  discount: {
-    fontSize: 12,
-    color: "#00C853",
-    marginLeft: 6,
-    fontWeight: "600",
-  },
+
   addButton: {
-    backgroundColor: "#2196F3",
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginTop: 8,
+    backgroundColor: "#111",
+    paddingVertical: 8,
+    borderRadius: 8,
     alignItems: "center",
+    marginTop: 10,
   },
+
   addButtonText: {
     fontSize: 12,
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
+
+  /* Empty state styles */
   subtitle: {
     fontSize: 14,
     color: "#666",
@@ -266,14 +335,54 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 16,
   },
+
   button: {
-    backgroundColor: "#222",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    backgroundColor: "#111",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 10,
   },
+
   buttonText: {
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  content: {
+    padding: 10,
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  ratingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  sizeBadge: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+
+  sizeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#333",
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF9800",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  offlineBannerText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

@@ -15,8 +15,9 @@ const DATA = [
   { label: "Sleeve", value: "Full-Length" },
 ]
 
-const ProductHighlights = () => {
+const ProductHighlights = ({product}) => {
   const [expanded, setExpanded] = useState(false)
+  console.log(product)
 
   // 3 rows = 6 items (2 columns)
   const visibleData = expanded ? DATA : DATA.slice(0, 6)

@@ -1,17 +1,14 @@
-// import { RootState } from "@/redux/store";
 import React, { useRef, useState } from "react";
 import {
   Alert,
   Image,
   KeyboardAvoidingView,
-  // NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  // TextInputKeyPressEventData,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -22,11 +19,11 @@ import GOOGLE_LOGO from "../../../../assets/profile/google-logo.png";
 // import { setIsSendingOtp } from "@/redux/features/user/signupSlice";
 import { useCreateUserMutation, useGetUserQuery, useVerifyOtpMutation } from "@/redux/apiSlice";
 import { setIsUserLoggedIn, setUser } from "@/redux/features/user/authSlice";
-import { saveTokens } from "@/redux/token";
 import { getApp } from "@react-native-firebase/app";
 import { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 import { router } from "expo-router";
 import { useDispatch } from "react-redux";
+import { saveToSecureStore } from "@/redux/token";
 
 const Signup = () => {
   const [step, setStep] = useState("enterPhone");
@@ -47,7 +44,7 @@ const Signup = () => {
   const auth = getAuth(app);
 
   const handleSendOtp = async () => {
-    try {    
+    try {
       const formattedPhone = phone.startsWith("+") ? phone : `+91${phone}`;
       await createUser({ phone: formattedPhone }).unwrap();
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone);
@@ -95,9 +92,10 @@ const Signup = () => {
       Alert.alert('Error', 'Failed to retrieve ID token.');
       return;
     }
-      await saveTokens(idToken, '')
       await verifyOtp({ otp, fullName, email, gender, idToken }).unwrap();
       Alert.alert('Success', 'Phone authentication successful!');
+      saveToSecureStore('LOGIN_STATE', true)
+      saveToSecureStore('FIREBASE_TOKEN', idToken)
       dispatch(setIsUserLoggedIn(true))
       dispatch(setUser(userData))
       router.replace("/(tabs)/profile")

@@ -1,5 +1,5 @@
 import { setIsUserLoggedIn, setUser } from "@/redux/features/user/authSlice";
-import { clearTokens } from "@/redux/token";
+import { deleteFromSecureStore, saveToSecureStore } from "@/redux/token";
 import { Entypo } from "@expo/vector-icons";
 import { getAuth, signOut } from "@react-native-firebase/auth";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -15,29 +15,44 @@ import {
 import { Button } from "react-native-paper";
 import { useDispatch } from "react-redux";
 
-const ProfilePage = ({ userData }) => {
+type User = {
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  phone_verified: boolean;
+  email_verified: boolean;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+};
+
+const ProfilePage = ({ userData }: { userData: User }) => {
 
   const dispatch = useDispatch()
   const handleLogout = async () => {
     const auth = getAuth();
     await signOut(auth)
-    await clearTokens();
+    await deleteFromSecureStore('FIREBASE_TOKEN')
+    await saveToSecureStore('LOGIN_STATE', false)
     dispatch(setIsUserLoggedIn(false));
     dispatch(setUser(null))
     router.replace("/(tabs)/home")
   };
   const tabBarHeight = useBottomTabBarHeight();
-  console.log(userData);
+  console.log("User data: ", userData);
   return (
     <ScrollView style={[styles.container, { marginBottom: tabBarHeight }]}>
       {/* Profile Header */}
       <View style={styles.header}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>P</Text>
+          <Text style={styles.avatarText}>{userData?.name.slice(0,1)}</Text>
         </View>
         <View style={styles.userInfo}>
-          <Text style={styles.name}>piyush</Text>
-          <Text style={styles.email}>piyushj7636@gmail.com</Text>
+          <Text style={styles.name}>{userData?.name}</Text>
+          <Text style={styles.email}>{userData?.email}</Text>
         </View>
         <TouchableOpacity>
           <Text style={styles.editText}>EDIT</Text>

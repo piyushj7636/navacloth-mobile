@@ -2,7 +2,6 @@ import { setNewTheme } from "@/redux/features/common/themeSlice";
 import { RootState } from "@/redux/store";
 import { Fontisto, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -27,7 +26,9 @@ export default function Header() {
           APPAREL
         </Text> */}
         <View style={styles.icons}>
-          <Pressable onPress={toggleTheme}>
+          <Pressable 
+          onPress={toggleTheme}
+          >
             <Text style={{ color: colorTheme, marginTop: 2 }}>
               <Fontisto
                 name={currentTheme === "light" ? "day-sunny" : "night-clear"}

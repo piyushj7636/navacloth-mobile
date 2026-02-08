@@ -1,89 +1,247 @@
 import SelectAddressModal from "@/components/modal/SelectAddressModal";
-import { router } from "expo-router";
-import React, { useState } from "react";
 import {
+  getCartItems,
+  getCartTotal,
+} from "@/features/cart/cart.db.js";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { useGetCartQuery, useRemoveFromCartMutation, useUpdateCartQuantityMutation } from "@/redux/apiSlice";
+import { RootState } from "@/redux/store";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
   Image,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
 
-const cartItems = [
-  {
-    title: "Men's Off White Curated Graphic Printed T-shirt",
-    price: 599,
-    saved: 800,
-    offer: "Buy 3 for 1099 offer applicable",
-    delivery: "Delivery by 09 Nov 2023",
-  },
-  {
-    title: "Men's Moon Most Wanted Graphic Printed Oversized T-shirt",
-    price: 599,
-    saved: 700,
-    offer: "Buy 3 for 1099 offer applicable",
-    delivery: "Delivery by 09 Nov 2023",
-  },
-  {
-    title: "Men's Moon Most Wanted Graphic Printed Oversized T-shirt",
-    price: 599,
-    saved: 700,
-    offer: "Buy 3 for 1099 offer applicable",
-    delivery: "Delivery by 09 Nov 2023",
-  },
-];
+import {
+  useSafeAreaInsets
+} from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
+
+interface CartItem {
+  variant_id: string | number;
+  image: string;
+  title: string;
+  color: string;
+  size: string;
+  price: number;
+  quantity: number;
+}
 
 const Cart = () => {
-  const totalMRP = 2998;
-  const discount = 1800;
-  const total = 1198;
-  const isAuthenticated = true;
+  const [localCart, setLocalCart] = useState<CartItem[]>([]);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineIndicator, setOfflineIndicator] = useState(false);
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.auth.isUserLoggedIn,
+  );
   const [showModal, setShowModal] = useState(false);
+  const [total, setTotal] = useState({
+    totalMrp: 0,
+    totalSelling: 0,
+    totalSavings: 0,
+  });
   const insets = useSafeAreaInsets();
+  const [removeFromCart] = useRemoveFromCartMutation();
+  const [updateCartQuantity] = useUpdateCartQuantityMutation()
+
+  // ✅ Listen to network connectivity
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((state) => {
+      const online = Boolean(state.isConnected);
+      setIsOnline(online);
+      if (!online) {
+        setOfflineIndicator(true);
+      }
+    });
+    return unsub;
+  }, []);
+
+  // ✅ Load SQLite when offline
+  useEffect(() => {
+    if (!isOnline && isAuthenticated) {
+      (async () => {
+        try {
+          const data = await getCartItems();
+          console.log("Local cart database: ", data)
+          const total = await getCartTotal();
+          setLocalCart(data);
+          setTotal(total);
+          console.log("📦 Loaded cart from SQLite (offline mode)");
+        } catch (error) {
+          console.error("❌ Error loading offline cart", error);
+        }
+      })();
+    }
+  }, [isOnline, isAuthenticated]);
+
+  // ✅ Fetch cart from server only when online
+  const {
+    data: cartData,
+    isLoading,
+    refetch,
+  } = useGetCartQuery(undefined, {
+    skip: !isAuthenticated || !isOnline, // skip when offline or not authenticated
+  });
+
+  // ✅ Auto-refetch when back online
+  useEffect(() => {
+    if (isOnline && isAuthenticated && offlineIndicator) {
+      console.log("🔄 Back online — refetching cart");
+      refetch();
+      setOfflineIndicator(false);
+    }
+  }, [isOnline, isAuthenticated, refetch, offlineIndicator]);
+
+  const handleRemoveItem = async (variant_code, cart_item_id) => {
+    try {
+      await removeFromCart({variant_code, cart_item_id});
+      try {
+        await refetch();
+      } catch {}
+    } catch (error) {
+      console.error("❌ Failed to remove item", error);
+    }
+    // setLocalCart((prev) => prev.filter((i) => i.variant_id !== item.variant_id));
+  };
+
+  const handleUpdateQuantity = useDebouncedCallback(
+  (id, quantity, variant_code) => {
+    updateCartQuantity({id, quantity, variant_code});
+  },
+  500
+);
+
+  const displayData = !isOnline ? localCart : cartData || [];
 
   return (
-    <SafeAreaView
-      style={{ marginBottom: insets.bottom + 50 }}
-      edges={["bottom"]}
-    >
-      <ScrollView
-        style={{ marginVertical: 10, marginHorizontal: 10 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {isAuthenticated ? (
-          <View>
-            <Text style={styles.delivery}>Delivery to: 110053</Text>
-            <Text style={styles.coupon}>
-              Offer applied: GETCASH10 - EXTRA 10% Cashback on products above
-              ₹499
-            </Text>
-
-            {cartItems.map((item, index) => (
-              <View key={index} style={styles.itemCard}>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <Text style={styles.offer}>{item.offer}</Text>
-                <Text style={styles.deliveryDate}>{item.delivery}</Text>
-                <Text style={styles.price}>
-                  ₹{item.price}{" "}
-                  <Text style={styles.saved}>Saved ₹{item.saved}</Text>
+    <View style={{ paddingBottom: insets.bottom + 60 }}>
+      {isAuthenticated ? (
+        isLoading && !displayData.length ? (
+          // 🔹 Loading state
+          <View
+            style={[
+              styles.container,
+              { justifyContent: "center", alignItems: "center", height: 200 },
+            ]}
+          >
+            <ActivityIndicator size="large" color="#000" />
+          </View>
+        ) : displayData.length > 0 ? (
+          <>
+            {/* 🔹 Offline banner */}
+            {!isOnline && (
+              <View style={styles.offlineBanner}>
+                <Feather name="wifi-off" size={14} color="#fff" />
+                <Text style={styles.offlineBannerText}>
+                  {" "}
+                  Offline mode — showing cached data
                 </Text>
               </View>
-            ))}
+            )}
 
-            <View style={styles.summary}>
+            {/* 🔹 FlatList for cart items */}
+            <FlatList
+              data={displayData}
+              keyExtractor={(item) =>
+                item.cart_item_id?.toString() ??
+                item.variant_id ??
+                String(item.id)
+              }
+              renderItem={({ item }) => (
+                <View style={styles.itemCard}>
+                  {/* Left: Product Image */}
+                  <Image
+                    source={{ uri: item.image }}
+                    style={styles.itemImage}
+                  />
+
+                  {/* Right: Product Details */}
+                  <View style={styles.itemDetails}>
+                    <View style={styles.topRow}>
+                      <Text style={styles.itemTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+
+                      <TouchableOpacity onPress={() => handleRemoveItem(item.variant_code, item.cart_item_id)}>
+                        <Ionicons
+                          name="trash-outline"
+                          size={18}
+                          color="#ff4d4f"
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.variantText}>
+                      {item.color}, Size {item.size}
+                    </Text>
+
+                    <View style={styles.bottomRow}>
+                      <Text style={styles.price}>₹{item.selling_price}</Text>
+
+                      {/* Quantity controls */}
+                      <View style={styles.qtyContainer}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => {
+                            const newQty = item.quantity - 1;
+                            if (newQty === 0) {
+                              handleRemoveItem(item.variant_code, item.cart_item_id);
+                            } else {
+                              setLocalCart((prev) =>
+                                prev.map((cartItem) =>
+                                  cartItem.variant_id === item.variant_id
+                                    ? { ...cartItem, quantity: newQty }
+                                    : cartItem,
+                                ),
+                              );
+                              handleUpdateQuantity(item.cart_item_id, newQty, item.variant_code);
+                            }
+                          }}
+                        >
+                          <Ionicons name="remove" size={14} color="#2563eb" />
+                        </TouchableOpacity>
+
+                        <Text style={styles.qtyText}>{item.quantity}</Text>
+
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => {
+                            const newQty = item.quantity + 1;
+                            setLocalCart((prev) =>
+                              prev.map((cartItem) =>
+                                cartItem.variant_id === item.variant_id
+                                  ? { ...cartItem, quantity: newQty }
+                                  : cartItem,
+                              ),
+                            );
+                            handleUpdateQuantity(item.cart_item_id, newQty, item.variant_code);
+                          }}
+                        >
+                          <Ionicons name="add" size={14} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+              ListFooterComponent={({item}) => (
+                <View>
+                  <View style={styles.summary}>
               <Text style={styles.summaryTitle}>Price Summary</Text>
               <View style={styles.row}>
                 <Text>Total MRP:</Text>
-                <Text>₹{totalMRP}</Text>
+                <Text>₹{total.totalMrp ?? 0}</Text>
               </View>
               <View style={styles.row}>
                 <Text>Discount:</Text>
-                <Text style={styles.discount}>-₹{discount}</Text>
+                <Text style={styles.discount}>-₹{total.totalSavings ?? 0}</Text>
               </View>
               <View style={styles.row}>
                 <Text>Delivery Fee:</Text>
@@ -91,7 +249,7 @@ const Cart = () => {
               </View>
               <View style={styles.row}>
                 <Text style={styles.totalLabel}>Total:</Text>
-                <Text style={styles.total}>₹{total}</Text>
+                <Text style={styles.total}>₹{total.totalSelling ?? 0}</Text>
               </View>
             </View>
 
@@ -99,9 +257,10 @@ const Cart = () => {
               🎉 Yay! You get FREE delivery on this order
             </Text>
             <Text style={styles.savings}>
-              You are saving ₹1500 on this order
+              You are saving ₹{total.totalSavings} on this order
             </Text>
 
+            {/* 🔹 Buttons */}
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.button}>
                 <Text style={styles.buttonText}>VIEW DETAILS</Text>
@@ -118,34 +277,36 @@ const Cart = () => {
                 setShowModal={setShowModal}
               />
             </View>
-          </View>
+                </View>
+              )}
+              contentContainerStyle={styles.container}
+            />
+
+            {/* 🔹 Price Summary */}
+            
+          </>
         ) : (
-          <View>
-            <View style={styles.container}>
-              <Image
-                source={{
-                  uri: "https://www.placeholderimage.online/placeholder/190/220/f3f4f6/1f2937?font=Montserrat.svg", // or replace with your local image
-                }}
-                style={styles.image}
-                resizeMode="contain"
-              />
-
-              <Text style={styles.title}>Hey, your bag feels so light!</Text>
-              <Text style={styles.subtitle}>
-                Let’s add some items in your bag
-              </Text>
-
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => router.push("/")} // optional navigation
-              >
-                <Text style={styles.buttonText}>START SHOPPING</Text>
-              </TouchableOpacity>
-            </View>
+          // 🔹 Empty state
+          <View style={styles.container}>
+            <Image
+              source={{
+                uri: "https://www.placeholderimage.online/placeholder/150/150/f3f4f6/1f2937?font=Montserrat.svg",
+              }}
+              style={styles.image}
+            />
+            <Text style={styles.title}>Your Cart is Empty</Text>
+            <Text style={styles.subtitle}>
+              Add items to your cart and shop them anytime.
+            </Text>
+            <TouchableOpacity style={styles.button}>
+              <Text style={styles.buttonText}>Start Shopping</Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        )
+      ) : (
+        <Text>Please log in to view your cart.</Text>
+      )}
+    </View>
   );
 };
 
@@ -153,7 +314,7 @@ export default Cart;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    // flex: 1,
     backgroundColor: "#fff",
     padding: 16,
   },
@@ -167,17 +328,6 @@ const styles = StyleSheet.create({
     color: "#007BFF",
     marginBottom: 12,
   },
-  itemCard: {
-    backgroundColor: "#f9f9f9",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  itemTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#000",
-  },
   offer: {
     fontSize: 13,
     color: "#555",
@@ -187,11 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#888",
     marginTop: 2,
-  },
-  price: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 6,
   },
   saved: {
     fontSize: 13,
@@ -271,5 +416,94 @@ const styles = StyleSheet.create({
     color: "#555",
     textAlign: "center",
     marginBottom: 24,
+  },
+  itemCard: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+
+  itemImage: {
+    width: 80,
+    height: 100,
+    borderRadius: 10,
+    backgroundColor: "#f0f0f0",
+  },
+
+  itemDetails: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: "space-between",
+  },
+
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111",
+    flex: 1,
+    marginRight: 8,
+  },
+
+  variantText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+  },
+
+  bottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  price: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  qtyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 20,
+    paddingHorizontal: 6,
+  },
+
+  qtyBtn: {
+    padding: 6,
+  },
+
+  qtyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginHorizontal: 6,
+  },
+
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FF9800",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  offlineBannerText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
