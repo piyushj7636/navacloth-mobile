@@ -1,6 +1,7 @@
+import { RootState } from "@/redux/store";
 import { Entypo } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Modal,
   Pressable,
@@ -9,8 +10,20 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSelector } from "react-redux";
+import AddNewAddress from "../common/AddNewAddress";
 
-const SelectAddressModal = ({ visible, onClose, setShowModal }) => {
+const SelectAddressModal = ({
+  visible,
+  onClose,
+  setShowModal,
+  userData,
+  userAddresses,
+}) => {
+  // const isAuthenticated = useSelector(
+  //   (state: RootState) => state.auth.auth.isUserLoggedIn,
+  // );
+  const [showNewAddressModal, setShowNewAddressModal] = useState(false);
   return (
     <Modal
       visible={visible}
@@ -31,29 +44,36 @@ const SelectAddressModal = ({ visible, onClose, setShowModal }) => {
           </View>
 
           {/* Address Block */}
-          <View style={styles.addressCard}>
-            <View style={styles.addressHeader}>
-              <Text style={styles.name}>Piyush Joshi</Text>
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>Other</Text>
+          {userAddresses && userAddresses.length > 0 ? (
+            userAddresses.map((addr, idx) => (
+              <View style={styles.addressCard} key={idx}>
+                <View style={styles.addressHeader}>
+                  <Text style={styles.name}>{addr?.addressee_name}</Text>
+                </View>
+
+                <Text style={styles.addressText}>
+                  {addr.house_number} {addr.locality} {addr.city}{" "}
+                  {addr.postal_code} {addr.state} {addr.country}
+                </Text>
+                <Text style={styles.contact}>Contact number: {addr.addressee_phone}</Text>
               </View>
+            ))
+          ) : (
+            <View>
+              <TouchableOpacity
+                style={styles.addAddressBtn}
+                onPress={() => setShowNewAddressModal(true)}
+              >
+                <Text style={styles.addAddressText}>+ ADD NEW ADDRESS</Text>
+              </TouchableOpacity>
+              <AddNewAddress
+                visible={showNewAddressModal}
+                onClose={() => setShowNewAddressModal(false)}
+                setShowModal={setShowNewAddressModal}
+                userData={userData}
+              />
             </View>
-
-            <Text style={styles.addressText}>
-              H No. 602/1 Krishna Street No. 7, Adarsh mohalla, East Delhi,
-              110053
-            </Text>
-            <Text style={styles.contact}>Contact number: 7503567636</Text>
-
-            <TouchableOpacity>
-              <Text style={styles.editText}>EDIT</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Add new address */}
-          <TouchableOpacity style={styles.addAddressBtn}>
-            <Text style={styles.addAddressText}>+ ADD NEW ADDRESS</Text>
-          </TouchableOpacity>
+          )}
 
           {/* Select address button */}
           <TouchableOpacity

@@ -1,10 +1,12 @@
 import SelectAddressModal from "@/components/modal/SelectAddressModal";
-import {
-  getCartItems,
-  getCartTotal,
-} from "@/features/cart/cart.db.js";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { useGetCartQuery, useRemoveFromCartMutation, useUpdateCartQuantityMutation } from "@/redux/apiSlice";
+import {
+  useGetAllAddressesQuery,
+  useGetCartQuery,
+  useRemoveFromCartMutation,
+  useUpdateCartQuantityMutation,
+} from "@/redux/apiSlice";
+import { updateCartItem } from "@/redux/features/cart/cartSlice";
 import { RootState } from "@/redux/store";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
@@ -16,31 +18,33 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
-import {
-  useSafeAreaInsets
-} from "react-native-safe-area-context";
-import { useSelector } from "react-redux";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useDispatch, useSelector } from "react-redux";
 
 interface CartItem {
   variant_id: string | number;
+  cart_item_id: number;
   image: string;
   title: string;
   color: string;
   size: string;
   price: number;
   quantity: number;
+  selling_price: number;
 }
 
 const Cart = () => {
-  const [localCart, setLocalCart] = useState<CartItem[]>([]);
+  const cartItems = useSelector((state: RootState) => state.cart.items)
+  const dispatch = useDispatch()
   const [isOnline, setIsOnline] = useState(true);
   const [offlineIndicator, setOfflineIndicator] = useState(false);
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.auth.isUserLoggedIn,
   );
+  const userData = useSelector((state: RootState) => state.auth.auth.user)
   const [showModal, setShowModal] = useState(false);
   const [total, setTotal] = useState({
     totalMrp: 0,
@@ -49,7 +53,8 @@ const Cart = () => {
   });
   const insets = useSafeAreaInsets();
   const [removeFromCart] = useRemoveFromCartMutation();
-  const [updateCartQuantity] = useUpdateCartQuantityMutation()
+  const [updateCartQuantity] = useUpdateCartQuantityMutation();
+  const {data: userAddresses} = useGetAllAddressesQuery()
 
   // ✅ Listen to network connectivity
   useEffect(() => {
@@ -63,24 +68,6 @@ const Cart = () => {
     return unsub;
   }, []);
 
-  // ✅ Load SQLite when offline
-  useEffect(() => {
-    if (!isOnline && isAuthenticated) {
-      (async () => {
-        try {
-          const data = await getCartItems();
-          console.log("Local cart database: ", data)
-          const total = await getCartTotal();
-          setLocalCart(data);
-          setTotal(total);
-          console.log("📦 Loaded cart from SQLite (offline mode)");
-        } catch (error) {
-          console.error("❌ Error loading offline cart", error);
-        }
-      })();
-    }
-  }, [isOnline, isAuthenticated]);
-
   // ✅ Fetch cart from server only when online
   const {
     data: cartData,
@@ -89,6 +76,23 @@ const Cart = () => {
   } = useGetCartQuery(undefined, {
     skip: !isAuthenticated || !isOnline, // skip when offline or not authenticated
   });
+
+  useEffect(() => {
+  const totalMrp = cartItems.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0
+  );
+  const totalSelling = cartItems.reduce(
+    (total, item) => total + item.selling_price * item.quantity,
+    0
+  );
+  const totalSavings = totalMrp - totalSelling;
+  setTotal({
+    totalMrp,
+    totalSelling,
+    totalSavings,
+  });
+}, [cartItems]);
 
   // ✅ Auto-refetch when back online
   useEffect(() => {
@@ -101,24 +105,25 @@ const Cart = () => {
 
   const handleRemoveItem = async (variant_code, cart_item_id) => {
     try {
-      await removeFromCart({variant_code, cart_item_id});
-      try {
-        await refetch();
-      } catch {}
+      await removeFromCart({ variant_code, cart_item_id });
     } catch (error) {
       console.error("❌ Failed to remove item", error);
     }
-    // setLocalCart((prev) => prev.filter((i) => i.variant_id !== item.variant_id));
   };
 
-  const handleUpdateQuantity = useDebouncedCallback(
-  (id, quantity, variant_code) => {
-    updateCartQuantity({id, quantity, variant_code});
-  },
-  500
-);
 
-  const displayData = !isOnline ? localCart : cartData || [];
+  const handleUpdateQuantity = (id, quantity, variant_code) => {
+    // ✅ Update UI instantly
+    dispatch(updateCartItem({variant_code, quantity}))
+    // ✅ Debounce only the server call
+    debouncedUpdate(id, quantity, variant_code);
+  };
+
+  const debouncedUpdate = useDebouncedCallback((id, quantity, variant_code) => {
+    updateCartQuantity({ id, quantity, variant_code });
+  }, 500);
+
+  const displayData = cartItems;
 
   return (
     <View style={{ paddingBottom: insets.bottom + 60 }}>
@@ -151,8 +156,7 @@ const Cart = () => {
               data={displayData}
               keyExtractor={(item) =>
                 item.cart_item_id?.toString() ??
-                item.variant_id ??
-                String(item.id)
+                item.variant_code
               }
               renderItem={({ item }) => (
                 <View style={styles.itemCard}>
@@ -169,7 +173,11 @@ const Cart = () => {
                         {item.title}
                       </Text>
 
-                      <TouchableOpacity onPress={() => handleRemoveItem(item.variant_code, item.cart_item_id)}>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleRemoveItem(item.variant_code, item.cart_item_id)
+                        }
+                      >
                         <Ionicons
                           name="trash-outline"
                           size={18}
@@ -192,16 +200,16 @@ const Cart = () => {
                           onPress={() => {
                             const newQty = item.quantity - 1;
                             if (newQty === 0) {
-                              handleRemoveItem(item.variant_code, item.cart_item_id);
-                            } else {
-                              setLocalCart((prev) =>
-                                prev.map((cartItem) =>
-                                  cartItem.variant_id === item.variant_id
-                                    ? { ...cartItem, quantity: newQty }
-                                    : cartItem,
-                                ),
+                              handleRemoveItem(
+                                item.variant_code,
+                                item.cart_item_id,
                               );
-                              handleUpdateQuantity(item.cart_item_id, newQty, item.variant_code);
+                            } else {
+                              handleUpdateQuantity(
+                                item.cart_item_id,
+                                newQty,
+                                item.variant_code,
+                              );
                             }
                           }}
                         >
@@ -214,14 +222,11 @@ const Cart = () => {
                           style={styles.qtyBtn}
                           onPress={() => {
                             const newQty = item.quantity + 1;
-                            setLocalCart((prev) =>
-                              prev.map((cartItem) =>
-                                cartItem.variant_id === item.variant_id
-                                  ? { ...cartItem, quantity: newQty }
-                                  : cartItem,
-                              ),
+                            handleUpdateQuantity(
+                              item.cart_item_id,
+                              newQty,
+                              item.variant_code,
                             );
-                            handleUpdateQuantity(item.cart_item_id, newQty, item.variant_code);
                           }}
                         >
                           <Ionicons name="add" size={14} color="#2563eb" />
@@ -231,59 +236,64 @@ const Cart = () => {
                   </View>
                 </View>
               )}
-              ListFooterComponent={({item}) => (
+              ListFooterComponent={({ item }) => (
                 <View>
                   <View style={styles.summary}>
-              <Text style={styles.summaryTitle}>Price Summary</Text>
-              <View style={styles.row}>
-                <Text>Total MRP:</Text>
-                <Text>₹{total.totalMrp ?? 0}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text>Discount:</Text>
-                <Text style={styles.discount}>-₹{total.totalSavings ?? 0}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text>Delivery Fee:</Text>
-                <Text>₹0</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.totalLabel}>Total:</Text>
-                <Text style={styles.total}>₹{total.totalSelling ?? 0}</Text>
-              </View>
-            </View>
+                    <Text style={styles.summaryTitle}>Price Summary</Text>
+                    <View style={styles.row}>
+                      <Text>Total MRP:</Text>
+                      <Text>₹{total.totalMrp ?? 0}</Text>
+                    </View>
+                    <View style={styles.row}>
+                      <Text>Discount:</Text>
+                      <Text style={styles.discount}>
+                        -₹{total.totalSavings ?? 0}
+                      </Text>
+                    </View>
+                    <View style={styles.row}>
+                      <Text>Delivery Fee:</Text>
+                      <Text>₹0</Text>
+                    </View>
+                    <View style={styles.row}>
+                      <Text style={styles.totalLabel}>Total:</Text>
+                      <Text style={styles.total}>
+                        ₹{total.totalSelling ?? 0}
+                      </Text>
+                    </View>
+                  </View>
 
-            <Text style={styles.freeDelivery}>
-              🎉 Yay! You get FREE delivery on this order
-            </Text>
-            <Text style={styles.savings}>
-              You are saving ₹{total.totalSavings} on this order
-            </Text>
+                  <Text style={styles.freeDelivery}>
+                    🎉 Yay! You get FREE delivery on this order
+                  </Text>
+                  <Text style={styles.savings}>
+                    You are saving ₹{total.totalSavings} on this order
+                  </Text>
 
-            {/* 🔹 Buttons */}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>VIEW DETAILS</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.proceed]}
-                onPress={() => setShowModal(true)}
-              >
-                <Text style={styles.buttonText}>PROCEED</Text>
-              </TouchableOpacity>
-              <SelectAddressModal
-                visible={showModal}
-                onClose={() => setShowModal(false)}
-                setShowModal={setShowModal}
-              />
-            </View>
+                  {/* 🔹 Buttons */}
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity style={styles.button}>
+                      <Text style={styles.buttonText}>VIEW DETAILS</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.button, styles.proceed]}
+                      onPress={() => setShowModal(true)}
+                    >
+                      <Text style={styles.buttonText}>PROCEED</Text>
+                    </TouchableOpacity>
+                    <SelectAddressModal
+                      visible={showModal}
+                      onClose={() => setShowModal(false)}
+                      setShowModal={setShowModal}
+                      userData={userData}
+                      userAddresses={userAddresses}
+                    />
+                  </View>
                 </View>
               )}
               contentContainerStyle={styles.container}
             />
 
             {/* 🔹 Price Summary */}
-            
           </>
         ) : (
           // 🔹 Empty state

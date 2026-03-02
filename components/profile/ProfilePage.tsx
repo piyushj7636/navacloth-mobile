@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import { Button } from "react-native-paper";
 import { useDispatch } from "react-redux";
@@ -26,35 +27,46 @@ type User = {
   city: string | null;
   state: string | null;
   postal_code: string | null;
+  landmark: string | null;
   country: string | null;
+  image_url?: string;
 };
 
 const ProfilePage = ({ userData }: { userData: User }) => {
-
-  const dispatch = useDispatch()
+  const dispatch = useDispatch();
   const handleLogout = async () => {
     const auth = getAuth();
-    await signOut(auth)
-    await deleteFromSecureStore('FIREBASE_TOKEN')
-    await saveToSecureStore('LOGIN_STATE', false)
+    await signOut(auth);
+    await deleteFromSecureStore("FIREBASE_TOKEN");
+    await saveToSecureStore("LOGIN_STATE", false);
     dispatch(setIsUserLoggedIn(false));
-    dispatch(setUser(null))
-    router.replace("/(tabs)/home")
+    dispatch(setUser(null));
+    router.replace("/(tabs)/home");
   };
   const tabBarHeight = useBottomTabBarHeight();
-  console.log("User data: ", userData);
   return (
     <ScrollView style={[styles.container, { marginBottom: tabBarHeight }]}>
       {/* Profile Header */}
       <View style={styles.header}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{userData?.name.slice(0,1)}</Text>
+          {userData && userData.image_url ? (
+          <Image
+            source={{
+              uri: userData?.image_url,
+            }}
+            style={styles.avatar}
+          />
+          ) : (
+            <Text style={styles.avatarText}>{userData?.name?.slice(0, 1)}</Text>
+          )}
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.name}>{userData?.name}</Text>
           <Text style={styles.email}>{userData?.email}</Text>
         </View>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/profile/editprofile")}
+        >
           <Text style={styles.editText}>EDIT</Text>
         </TouchableOpacity>
       </View>

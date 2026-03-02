@@ -3,6 +3,7 @@ import { getDB } from "../../database/index.js";
 export const addItemToCart = async (item) => {
   const db = await getDB();
   const {
+    cart_item_id,
     product_id,
     variant_code,
     title,
@@ -31,9 +32,10 @@ export const addItemToCart = async (item) => {
     } else {
       await db.executeSql(
         `INSERT INTO cart (
-          product_id, variant_code, title, size, color, price, selling_price, image, discount, quantity, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          cart_item_id, product_id, variant_code, title, size, color, price, selling_price, image, discount, quantity, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          cart_item_id,
           product_id,
           variant_code,
           title,
@@ -89,17 +91,13 @@ export const getCartItemCount = async () => {
   }
 };
 
-export const removeCartItem = async (variant_code) => {
+export const removeItemFromCart = async (variant_code) => {
   const db = await getDB();
 
   try {
     await db.executeSql(`DELETE FROM cart WHERE variant_code = ?`, [
       variant_code,
     ]);
-    const [rows] = await db.executeSql("SELECT id, variant_code, product_id FROM cart");
-    console.log("Cart rows:", rows.rows.raw());
-    const [schema] = await db.executeSql("PRAGMA table_info(cart)");
-    console.log("Cart schema:", schema.rows.raw());
     console.log("🗑️ Cart item removed");
   } catch (error) {
     console.log("❌ Remove cart item error", error);
@@ -264,4 +262,122 @@ export const markItemPendingRemoval = async (id) => {
     "pending_remove",
     id,
   ]);
+};
+
+export const saveCartToSQLite = async (cartItems) => {
+  const db = await getDB();
+
+  await db.transaction(async (tx) => {
+    await tx.executeSql("DELETE FROM cart");
+
+    for (const item of cartItems) {
+      await tx.executeSql(
+        `
+        INSERT INTO cart (
+          product_id,
+          variant_code,
+          title,
+          size,
+          color,
+          price,
+          image,
+          quantity,
+          selling_price,
+          discount,
+          updated_at,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          item.product_id,
+          item.variant_code,
+          item.title,
+          item.size,
+          item.color,
+          item.price,
+          item.image,
+          item.quantity,
+          item.selling_price,
+          item.discount,
+          Date.now(),
+        ]
+      );
+    }
+  });
+};
+
+export const updateCartItemId = async (variantCode, cartItemId) => {
+  try {
+    const db = await getDB(); // your existing DB connector
+
+    await db.executeSql(
+      `
+      UPDATE cart
+      SET cart_item_id = ?
+      WHERE variant_code = ?
+      `,
+      [cartItemId, variantCode]
+    );
+
+    console.log("✅ cart_item_id updated for", variantCode);
+  } catch (error) {
+    console.error("❌ Failed to update cart_item_id", error);
+  }
+};
+
+export const mergeBackendCartIntoSQLite = async (backendItems) => {
+  try {
+    // 1️⃣ Get local cart
+    const localItems = await getCartItems();
+
+    // Create fast lookup maps
+    const localMap = new Map(
+      localItems.map(item => [item.variant_code, item])
+    );
+
+    // const backendMap = new Map(
+    //   backendItems.map(item => [item.variant_code, item])
+    // );
+
+    // 2️⃣ Merge backend → local
+    for (const backendItem of backendItems) {
+      const localItem = localMap.get(backendItem.variant_code);
+
+      // 🟢 Backend-only item → insert
+      if (!localItem) {
+        await addItemToCart({
+          ...backendItem,
+          sync_status: "synced",
+        });
+        continue;
+      }
+
+      if (!localItem.cart_item_id && backendItem.cart_item_id) {
+        await updateCartItemId(
+          backendItem.variant_code,
+          backendItem.cart_item_id
+        );
+      }
+      // 🟡 Locally deleted → do NOT resurrect
+      if (localItem.sync_status === "pending_removal") {
+        continue;
+      }
+
+      // 🔴 Locally modified → do NOT overwrite
+      if (localItem.sync_status === "pending") {
+        continue;
+      }
+
+      // 🔵 Safe to sync quantity
+      if (localItem.quantity !== backendItem.quantity) {
+        await updateCartQuantity(
+          backendItem.variant_code,
+          backendItem.quantity
+        );
+      }
+    }
+
+    console.log("✅ Cart merge completed");
+  } catch (error) {
+    console.error("❌ Cart merge failed", error);
+  }
 };

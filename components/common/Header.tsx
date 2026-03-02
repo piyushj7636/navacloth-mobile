@@ -9,7 +9,7 @@ export default function Header() {
   const dispatch = useDispatch();
   const currentTheme = useSelector((state: RootState) => state.theme);
   const colorTheme = currentTheme === "light" ? "black" : "white";
-
+  // const userData = useSelector((state: RootState) => state.auth.auth.user)
   const toggleTheme = () => {
     dispatch(setNewTheme(currentTheme === "light" ? "dark" : "light"));
   };

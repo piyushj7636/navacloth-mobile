@@ -18,6 +18,8 @@ import { saveToSecureStore } from "../../../redux/token.js";
 import { getApp } from "@react-native-firebase/app";
 import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 import { setIsUserLoggedIn } from "@/redux/features/user/authSlice";
+import { getCartItems } from "@/features/cart/cart.db.js";
+import { setCartFromSQLite } from "@/redux/features/cart/cartSlice";
 
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
@@ -36,15 +38,10 @@ const HomeScreen = () => {
             const token = await user.getIdToken();
             console.log("🔥 Firebase Token:", token);
             await saveToSecureStore("FIREBASE_TOKEN", token);
-
+            const sqliteItems = await getCartItems()
+            console.log("SQLite items raw:", sqliteItems, Array.isArray(sqliteItems))
+            dispatch(setCartFromSQLite(sqliteItems))
             dispatch(setIsUserLoggedIn(true));
-            // dispatch(
-            //   setUser({
-            //     uid: user.uid,
-            //     email: user.email,
-            //     phone: user.phoneNumber,
-            //   }),
-            // );
           } else {
             dispatch(setIsUserLoggedIn(false));
           }

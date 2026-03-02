@@ -4,7 +4,7 @@ import { fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import * as SecureStore from "expo-secure-store";
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: "http://192.168.1.5:3000/api",
+  baseUrl: "http://192.168.1.6:3000/api",
 });
 
 const baseQueryWithFirebaseReauth = async (args, api, extraOptions) => {

@@ -22,8 +22,9 @@ import { setIsUserLoggedIn, setUser } from "@/redux/features/user/authSlice";
 import { getApp } from "@react-native-firebase/app";
 import { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 import { router } from "expo-router";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { saveToSecureStore } from "@/redux/token";
+import { RootState } from "@/redux/store";
 
 const Signup = () => {
   const [step, setStep] = useState("enterPhone");
@@ -37,11 +38,16 @@ const Signup = () => {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [verifyOtp] = useVerifyOtpMutation();
   const [createUser] = useCreateUserMutation()
-  const { data: userData } = useGetUserQuery()
   const inputs = useRef<(TextInput | null)[]>([]);
   const dispatch = useDispatch()
   const app = getApp();
   const auth = getAuth(app);
+  const isAuthenticated = useSelector(
+      (state: RootState) => state.auth.auth.isUserLoggedIn,
+    );
+  const { data: userData } = useGetUserQuery(undefined, {
+      skip: !isAuthenticated,
+    });
 
   const handleSendOtp = async () => {
     try {

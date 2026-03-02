@@ -13,11 +13,16 @@ export const createTables = async () => {
         phone_verified INTEGER DEFAULT 0,
         email TEXT,
         email_verified INTEGER DEFAULT 0,
+        house_number INTEGER,
         street_address TEXT,
         city TEXT,
         state TEXT,
         country TEXT,
-        postal_code TEXT
+        postal_code TEXT,
+        landmark TEXT,
+        image_url TEXT,
+        is_default TEXT,
+        address_type TEXT
       );
     `)
 
@@ -25,6 +30,7 @@ export const createTables = async () => {
     await db.executeSql(`
       CREATE TABLE IF NOT EXISTS cart (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cart_item_id INTEGER,
         product_id TEXT NOT NULL,
         variant_code TEXT NOT NULL UNIQUE,
         title TEXT,

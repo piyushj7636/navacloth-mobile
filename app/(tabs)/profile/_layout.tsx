@@ -5,6 +5,7 @@ export default function ProfileLayout() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{headerTitle: "APPAREL", headerShown: true, headerRight: () => <Header/>}} />
+      <Stack.Screen name="editprofile" options={{headerShown: false}} />
       <Stack.Screen name="deleteaccount" options={{headerShown: false}} />
       <Stack.Screen name="address" options={{headerShown: false}} />
       <Stack.Screen name="auth" options={{headerShown: false}} />

@@ -1,11 +1,13 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface CartItem {
-  id: string;
+  cart_item_id: number;     // backend key
+  variant_code?: string;    // local SQLite key (optional, if you want offline sync)
   name: string;
   price: number;
   quantity: number;
   imageUrl?: string;
+  selling_price: number;
 }
 
 interface CartState {
@@ -37,23 +39,21 @@ const cartSlice = createSlice({
       state.items.push(action.payload);
       state.totalPrice += action.payload.price * action.payload.quantity;
     },
-    removeCartItem: (state, action: PayloadAction<string>) => {
-      const item = state.items.find(i => i.id === action.payload);
+    removeCartItem: (state, action: PayloadAction<number>) => {
+      const item = state.items.find(i => i.cart_item_id === action.payload);
       if (item) {
         state.totalPrice -= item.price * item.quantity;
-        state.items = state.items.filter(i => i.id !== action.payload);
+        state.items = state.items.filter(i => i.cart_item_id !== action.payload);
       }
     },
     updateCartItem: (
       state,
-      action: PayloadAction<{ id: string; quantity: number }>
+      action: PayloadAction<{ variant_code: string; quantity: number }>
     ) => {
-      const { id, quantity } = action.payload;
-      const item = state.items.find(i => i.id === id);
+      const { variant_code, quantity } = action.payload;
+      const item = state.items.find(i => i.variant_code === variant_code);
       if (item) {
-        state.totalPrice -= item.price * item.quantity;
         item.quantity = quantity;
-        state.totalPrice += item.price * item.quantity;
       }
     },
     setCartLoading: (state, action: PayloadAction<boolean>) => {
@@ -61,6 +61,17 @@ const cartSlice = createSlice({
     },
     setCartError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
+    },
+    setCartFromSQLite: (state, action: PayloadAction<CartItem[]>) => {
+      state.items = action.payload;
+      state.totalPrice = action.payload.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+      );
+    },
+    clearCart: (state) => {
+      state.items = [];
+      state.totalPrice = 0;
     },
   },
 });
@@ -72,6 +83,8 @@ export const {
   updateCartItem,
   setCartLoading,
   setCartError,
+  setCartFromSQLite,
+  clearCart,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;
